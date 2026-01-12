@@ -119,6 +119,7 @@ if ($wechatWindow) {{
                 }} else {{
                     # 方式2: 发送Enter键
                     Write-Host "未找到发送按钮，尝试发送Enter键..."
+                    Add-Type -AssemblyName System.Windows.Forms
                     $inputBox.SetFocus()
                     [System.Windows.Forms.SendKeys]::SendWait("{{ENTER}}")
                     Write-Host "✅ 通过Enter键发送成功!"
