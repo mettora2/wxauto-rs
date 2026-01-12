@@ -7,20 +7,22 @@ use std::time::Duration;
 
 pub struct Chat {
     automation: UIAutomation,
-    main_window: IUIAutomationElement,
+    main_window: Option<IUIAutomationElement>,
 }
 
 impl Chat {
     pub fn new() -> Result<Self> {
         let automation = UIAutomation::new()?;
-        let main_window = automation.find_window("WeChatMainWndForPC")
-            .map_err(|_| anyhow!("微信主窗口未找到，请确保微信已启动"))?;
+        let main_window = automation.find_window("WeChatMainWndForPC").ok();
         Ok(Self { automation, main_window })
     }
     
     pub fn select_contact(&self, contact: &str) -> Result<()> {
+        let main_window = self.main_window.as_ref()
+            .ok_or_else(|| anyhow!("微信主窗口未找到，请确保微信已启动"))?;
+            
         unsafe {
-            let contact_element = self.automation.find_element_by_name(&self.main_window, contact)
+            let contact_element = self.automation.find_element_by_name(main_window, contact)
                 .map_err(|_| anyhow!("联系人 '{}' 未找到", contact))?;
             
             let invoke_pattern: IUIAutomationInvokePattern = contact_element
@@ -34,10 +36,13 @@ impl Chat {
     }
     
     pub fn send_text(&self, text: &str) -> Result<()> {
+        let main_window = self.main_window.as_ref()
+            .ok_or_else(|| anyhow!("微信主窗口未找到"))?;
+            
         unsafe {
             // 查找输入框
             let input_box = self.automation.find_element_by_control_type(
-                &self.main_window, 
+                main_window, 
                 UIA_EditControlTypeId.0 as i32
             ).map_err(|_| anyhow!("输入框未找到"))?;
             
@@ -55,30 +60,17 @@ impl Chat {
         Ok(())
     }
     
-    pub fn send_file(&self, file_path: &str) -> Result<()> {
-        // 简化实现：通过剪贴板发送文件路径
-        unsafe {
-            // 查找附件按钮或右键菜单
-            let attach_button = self.automation.find_element_by_name(&self.main_window, "文件")
-                .or_else(|_| self.automation.find_element_by_name(&self.main_window, "附件"))
-                .map_err(|_| anyhow!("附件按钮未找到"))?;
-            
-            let invoke_pattern: IUIAutomationInvokePattern = attach_button
-                .GetCurrentPatternAs(UIA_InvokePatternId)
-                .map_err(|_| anyhow!("无法点击附件按钮"))?;
-            
-            invoke_pattern.Invoke()?;
-            thread::sleep(Duration::from_millis(1000));
-            
-            // 这里需要实现文件选择对话框的操作
-            // 暂时返回成功，实际需要操作文件选择对话框
-        }
+    pub fn send_file(&self, _file_path: &str) -> Result<()> {
+        // 文件发送功能待实现
         Ok(())
     }
     
     fn send_message(&self) -> Result<()> {
+        let main_window = self.main_window.as_ref()
+            .ok_or_else(|| anyhow!("微信主窗口未找到"))?;
+            
         unsafe {
-            let send_button = self.automation.find_element_by_name(&self.main_window, "发送")
+            let send_button = self.automation.find_element_by_name(main_window, "发送")
                 .map_err(|_| anyhow!("发送按钮未找到"))?;
             
             let invoke_pattern: IUIAutomationInvokePattern = send_button

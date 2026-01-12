@@ -15,3 +15,7 @@ anyhow = "1.0"
 [[bin]]
 name = "wxauto-rs"
 path = "src/main.rs"
+
+[lib]
+name = "wxauto_rs"
+path = "src/lib.rs"
