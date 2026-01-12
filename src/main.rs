@@ -5,23 +5,27 @@ fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     
     if args.len() < 3 {
-        println!("用法: wxauto-rs <联系人> <消息>");
-        println!("示例: wxauto-rs \"文件传输助手\" \"Hello from Rust!\"");
+        println!("Usage: wxauto-rs <contact> <message>");
+        println!("Example: wxauto-rs \"文件传输助手\" \"Hello from Rust!\"");
         return Ok(());
     }
     
     let contact = &args[1];
     let message = &args[2];
     
-    println!("微信自动化工具 v1.3");
-    println!("联系人: {}", contact);
-    println!("消息: {}", message);
+    println!("WeChat Automation Tool v1.4");
+    println!("Contact: {}", contact);
+    println!("Message: {}", message);
     
     let ps_script = format!(r#"
+# Set UTF-8 encoding
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 
-Write-Host "正在查找微信窗口..."
+Write-Host "Finding WeChat window..."
 $automation = [System.Windows.Automation.AutomationElement]::RootElement
 
 $wechatWindow = $null
@@ -30,7 +34,7 @@ foreach ($className in $classNames) {{
     $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, $className)
     $wechatWindow = $automation.FindFirst([System.Windows.Automation.TreeScope]::Children, $condition)
     if ($wechatWindow) {{
-        Write-Host "找到微信窗口 (类名: $className)"
+        Write-Host "Found WeChat window (class: $className)"
         break
     }}
 }}
@@ -39,15 +43,14 @@ if (-not $wechatWindow) {{
     $nameCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "微信")
     $wechatWindow = $automation.FindFirst([System.Windows.Automation.TreeScope]::Children, $nameCondition)
     if ($wechatWindow) {{
-        Write-Host "找到微信窗口 (通过标题)"
+        Write-Host "Found WeChat window (by title)"
     }}
 }}
 
 if ($wechatWindow) {{
-    # 先尝试使用搜索功能
-    Write-Host "尝试使用搜索功能查找联系人..."
+    Write-Host "Searching for contact: {}"
     
-    # 查找搜索框 (通常在顶部)
+    # Try search function first
     $searchCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
     $searchBoxes = $wechatWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $searchCondition)
     
@@ -60,51 +63,49 @@ if ($wechatWindow) {{
         }}
     }}
     
+    $contactElement = $null
     if ($searchBox) {{
-        Write-Host "找到搜索框，搜索联系人..."
+        Write-Host "Using search box to find contact..."
         $searchBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue("{}")
         Start-Sleep -Seconds 2
         
-        # 查找搜索结果中的联系人
         $contactCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "{}")
         $contactElement = $wechatWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $contactCondition)
         
         if ($contactElement) {{
-            Write-Host "在搜索结果中找到联系人，点击..."
+            Write-Host "Found contact in search results, clicking..."
             $contactElement.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             Start-Sleep -Seconds 2
         }} else {{
-            Write-Host "搜索结果中未找到联系人，清空搜索框..."
+            Write-Host "Contact not found in search, clearing search box..."
             $searchBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue("")
             Start-Sleep -Seconds 1
         }}
     }}
     
-    # 如果搜索没找到，直接在聊天列表中查找
+    # If search didn't work, try direct lookup in chat list
     if (-not $contactElement) {{
-        Write-Host "在聊天列表中查找联系人: {}"
+        Write-Host "Looking for contact in chat list: {}"
         $contactCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "{}")
         $contactElement = $wechatWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $contactCondition)
         
         if ($contactElement) {{
-            Write-Host "在聊天列表中找到联系人，点击..."
+            Write-Host "Found contact in chat list, clicking..."
             $contactElement.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
             Start-Sleep -Seconds 2
         }}
     }}
     
     if ($contactElement) {{
-        Write-Host "查找输入框..."
+        Write-Host "Looking for message input box..."
         Start-Sleep -Seconds 1
         
-        # 查找消息输入框
         $editCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Edit)
         $inputBoxes = $wechatWindow.FindAll([System.Windows.Automation.TreeScope]::Descendants, $editCondition)
         
         $inputBox = $null
         foreach ($box in $inputBoxes) {{
             $name = $box.Current.Name
-            # 排除搜索框，找消息输入框
             if ($name -notlike "*搜索*" -and $name -notlike "*查找*" -and $box.Current.IsEnabled) {{
                 $inputBox = $box
                 break
@@ -112,37 +113,37 @@ if ($wechatWindow) {{
         }}
         
         if ($inputBox) {{
-            Write-Host "找到输入框，输入消息..."
+            Write-Host "Found input box, typing message..."
             $inputBox.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue("{}")
             Start-Sleep -Seconds 1
             
-            Write-Host "查找发送按钮..."
+            Write-Host "Looking for send button..."
             $sendCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "发送")
             $sendButton = $wechatWindow.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $sendCondition)
             
             if ($sendButton) {{
                 $sendButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-                Write-Host "✅ 消息发送成功!"
+                Write-Host "SUCCESS: Message sent!"
             }} else {{
-                Write-Host "⚠️ 未找到发送按钮，消息已输入，请手动按Enter发送"
+                Write-Host "WARNING: Send button not found, message typed. Please press Enter manually."
             }}
         }} else {{
-            Write-Host "❌ 未找到消息输入框"
+            Write-Host "ERROR: Message input box not found"
         }}
     }} else {{
-        Write-Host "❌ 未找到联系人: {}"
-        Write-Host "请确保:"
-        Write-Host "1. 联系人名称完全正确"
-        Write-Host "2. 该联系人存在于您的微信中"
-        Write-Host "3. 尝试先手动搜索该联系人"
+        Write-Host "ERROR: Contact not found: {}"
+        Write-Host "Please ensure:"
+        Write-Host "1. Contact name is exactly correct"
+        Write-Host "2. Contact exists in your WeChat"
+        Write-Host "3. Try manually searching for the contact first"
     }}
 }} else {{
-    Write-Host "❌ 未找到微信窗口"
-    Write-Host "请确保微信已启动并登录"
+    Write-Host "ERROR: WeChat window not found"
+    Write-Host "Please ensure WeChat is running and logged in"
 }}
-"#, contact, contact, contact, contact, message, contact);
+"#, contact, contact, contact, contact, contact, message, contact);
     
-    println!("执行微信自动化...");
+    println!("Executing WeChat automation...");
     
     let output = Command::new("powershell")
         .args(&["-ExecutionPolicy", "Bypass", "-Command", &ps_script])
@@ -154,7 +155,7 @@ if ($wechatWindow) {{
     println!("{}", stdout);
     
     if !stderr.is_empty() {
-        println!("错误信息: {}", stderr);
+        println!("Error: {}", stderr);
     }
     
     Ok(())
