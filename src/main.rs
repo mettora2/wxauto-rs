@@ -1,7 +1,6 @@
 use windows::Win32::UI::Accessibility::*;
 use windows::Win32::System::Com::*;
 use windows::Win32::Foundation::*;
-use windows::Win32::System::Variant::*;
 use windows::core::*;
 use anyhow::Result;
 use std::thread;
@@ -33,9 +32,10 @@ fn main() -> Result<()> {
         println!("查找微信窗口...");
         let desktop = automation.GetRootElement()?;
         
+        let class_name = HSTRING::from("WeChatMainWndForPC");
         let condition = automation.CreatePropertyCondition(
             UIA_ClassNamePropertyId,
-            &VARIANT::from("WeChatMainWndForPC"),
+            &VARIANT::from(&class_name),
         )?;
         
         match desktop.FindFirst(TreeScope_Children, &condition) {
@@ -44,9 +44,10 @@ fn main() -> Result<()> {
                 
                 // 查找联系人
                 println!("查找联系人: {}", contact);
+                let contact_name = HSTRING::from(contact);
                 let contact_condition = automation.CreatePropertyCondition(
                     UIA_NamePropertyId,
-                    &VARIANT::from(contact),
+                    &VARIANT::from(&contact_name),
                 )?;
                 
                 match main_window.FindFirst(TreeScope_Descendants, &contact_condition) {
@@ -59,9 +60,10 @@ fn main() -> Result<()> {
                             
                             // 查找输入框
                             println!("查找输入框...");
+                            let edit_type = VARIANT::from(UIA_EditControlTypeId.0 as i32);
                             let edit_condition = automation.CreatePropertyCondition(
                                 UIA_ControlTypePropertyId,
-                                &VARIANT::from(UIA_EditControlTypeId.0 as i32),
+                                &edit_type,
                             )?;
                             
                             match main_window.FindFirst(TreeScope_Descendants, &edit_condition) {
@@ -69,14 +71,16 @@ fn main() -> Result<()> {
                                     println!("找到输入框，输入消息...");
                                     
                                     if let Ok(value_pattern) = input_box.GetCurrentPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId) {
-                                        value_pattern.SetValue(&HSTRING::from(message))?;
+                                        let msg = HSTRING::from(message);
+                                        value_pattern.SetValue(&msg)?;
                                         thread::sleep(Duration::from_millis(500));
                                         
                                         // 查找发送按钮
                                         println!("查找发送按钮...");
+                                        let send_name = HSTRING::from("发送");
                                         let send_condition = automation.CreatePropertyCondition(
                                             UIA_NamePropertyId,
-                                            &VARIANT::from("发送"),
+                                            &VARIANT::from(&send_name),
                                         )?;
                                         
                                         match main_window.FindFirst(TreeScope_Descendants, &send_condition) {
@@ -89,8 +93,7 @@ fn main() -> Result<()> {
                                                 }
                                             }
                                             Err(_) => {
-                                                println!("❌ 未找到发送按钮，尝试按Enter键发送");
-                                                // 可以尝试发送Enter键
+                                                println!("❌ 未找到发送按钮");
                                             }
                                         }
                                     } else {
@@ -107,16 +110,13 @@ fn main() -> Result<()> {
                     }
                     Err(_) => {
                         println!("❌ 未找到联系人: {}", contact);
-                        println!("提示: 请确保联系人名称完全匹配，或联系人在当前可见区域");
+                        println!("提示: 请确保联系人名称完全匹配");
                     }
                 }
             }
             Err(_) => {
                 println!("❌ 未找到微信窗口");
-                println!("请确保:");
-                println!("1. 微信已启动并登录");
-                println!("2. 微信窗口未最小化");
-                println!("3. 使用的是PC版微信");
+                println!("请确保微信已启动并登录");
             }
         }
     }
